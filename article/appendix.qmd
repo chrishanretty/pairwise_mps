@@ -1,0 +1,154 @@
+---
+title: "The left-right positions of British MPs inferred from a survey of local councillors"
+subtitle: "Appendix"
+published: "Working paper"
+code-repo: "Access the code, data, and analysis at <>"
+correspondence-prefix: "Correspondence concerning this article should be addressed to"
+author:
+  - name: Chris Hanretty
+    email: chris.hanretty@rhul.ac.uk
+    orcid: 0000-0002-3948-3914
+    title: Professor of Politics
+    affiliations: 
+      - id: rhul
+        name: "Royal Holloway, University of London"
+        department: "Department of Politics, International Relations and Philosophy"
+        address: McCrea 1-08
+        city: Egham
+        region: Surrey
+        country: United Kingdom
+        postal-code: TW20 0EX
+    attributes:
+      corresponding: true
+  - name: Vasil Lazarov
+    email: vasil.lazarov@survation.com
+    title: PhD student
+    affiliations:
+      - id: survation
+        name: Survation
+      - ref: rhul
+thanks: "Thanks to Survation for hosting these questions on their omnibus survey of local councillors. Particular thanks to David Izamoje for setting up the script seen by councillors. "
+additional-info: |
+  We have no known conflict of interest to disclose.
+date: September 28, 2023
+bibliography: biblio.bib
+mainfont: "TeX Gyre Pagella"
+sansfont: "TeX Gyre Heros"
+prefer-html: true
+toc: true
+execute:
+  echo: false
+  message: false
+  warning: false
+format:
+  hikmah-pdf: default
+##  hikmah-manuscript-docx: default
+---
+
+```{r}
+here::i_am("article/appendix.qmd")
+suppressPackageStartupMessages(library(tidyverse))
+library(knitr)
+library(kableExtra)
+library(stringr)
+```
+
+{{< pagebreak >}}
+
+# Full listing of MPs
+
+The table reports the positions and ranks of MPs in office at the time
+of the survey. MPs appear with the party label under which they were
+elected to the House of Commons, whether or not they retain the party
+whip.
+
+```{r}
+plot_df <- readRDS(here::here("working", "partyonly_thetas.rds")) |>
+    mutate(Party = factor(Party, ordered = TRUE),
+           Party = reorder(Party, mean)) 
+
+fit <- readRDS(here::here("working", "partyonly_fit.rds"))
+thetas <- rstan::extract(fit, "theta")[[1]]
+
+### get rank information
+### over iterations, get rank
+ranks <- apply(thetas, 1, rank)
+### Summarize these ranks
+ranks <- apply(ranks, 1, function(x) {
+    data.frame(mean_rank = round(mean(x)),
+               lo_rank = round(quantile(x, 0.025)),
+               hi_rank = round(quantile(x, 1 - 0.025)))
+})
+ranks <- bind_rows(ranks) |>
+    mutate(mp_idx = 1:n())
+
+plot_df <- left_join(plot_df, ranks, by = join_by(mp_idx))
+plot_df <- plot_df |>
+    arrange(mean) |>
+    mutate(actual_rank = 1:n())
+
+
+tab <- plot_df |>
+    arrange(mean) |>
+    mutate(DisplayName = sub(" and ", " & ", DisplayName)) |>
+    mutate(DisplayName = sub(" \\(.*", "", DisplayName)) |>
+    mutate(Party = dplyr::recode(Party,
+                                 "Scottish National Party" = "SNP",
+                                 "Conservative" = "Cons.")) |>
+    dplyr::select(MP = DisplayName, Party,
+                  `Mean` = mean, `Lo` = `2.5%`, `Hi` = `97.5%`,
+                  `Rank` = actual_rank, `Lo ` = `lo_rank`, `Hi ` = `hi_rank`)
+
+kbl(tab,
+    digits = 2,
+    format = "latex",
+    booktabs = TRUE,
+    longtable = TRUE) |>
+    add_header_above(c(" " = 2, "Position" = 3, "Rank" = 3)) |>
+    kable_styling(latex_options = c("repeat_header"))
+
+```
+
+{{< pagebreak >}}
+
+# Stan code
+
+```{r}
+writeLines(readLines(here::here("working", "partyonly.stan")))
+```
+
+# Efficiency gains over dichotomous or trichotomous responses
+
+```{r trchot}
+trichot_df <- readRDS(here::here("working", "trichot_thetas.rds")) |>
+    mutate(Party = factor(Party, ordered = TRUE),
+           Party = reorder(Party, mean)) 
+
+ci_width <- plot_df |>
+    mutate(ci_width = `97.5%` - `2.5%`) |>
+    summarize(ci_width = mean(ci_width)) |>
+    pull(ci_width) |>
+    round(2)
+
+
+ci_width_trichot <- trichot_df |>
+    mutate(ci_width = `97.5%` - `2.5%`) |>
+    summarize(ci_width = mean(ci_width)) |>
+    pull(ci_width) |>
+    round(2)
+
+joint <- left_join(plot_df, trichot_df,
+                   by = join_by(DisplayName, Party, PCON22CD, Person.ID))
+
+the_cor <- with(joint,
+                cor(mean.x, mean.y))
+the_cor <- round(the_cor, 2)
+```
+
+The average CI width in the five-category model was `r ci_width`. 
+This compares to a SD of `r round(sd(plot_df$mean), 2)`. The CI width expressed as a proportion of the SD is therefore `r round(ci_width / sd(plot_df$mean), 2)`. 
+
+The average CI width in the three-category model was `r ci_width_trichot`. 
+This compares to a SD of `r round(sd(trichot_df$mean), 2)`. The CI width expressed as a proportion of the SD is therefore `r round(ci_width_trichot / sd(trichot_df$mean), 2)`. 
+
+The correlation between the two measures is $r=`r the_cor`$.

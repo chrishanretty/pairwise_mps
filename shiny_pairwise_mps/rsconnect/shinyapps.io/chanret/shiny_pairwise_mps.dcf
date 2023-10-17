@@ -1,0 +1,10 @@
+name: shiny_pairwise_mps
+title:
+username: chanret
+account: chanret
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 10182424
+bundleId: 7813565
+url: https://chanret.shinyapps.io/shiny_pairwise_mps/
+version: 1
