@@ -6,7 +6,7 @@ get_wep <- function(x) {
                      x > .90 ~ "very likely to be to the ",
                      x > .66 ~ "likely to be to the ",
                      x >= .50 ~ "more likely than not to be to the ",
-                     x >= .45 ~ "only barely more likely than not to be to the "
+                     x >= .45 ~ "only barely more likely than not to be to the ",
                      TRUE ~ " error! "
                      )
     return(wep)
