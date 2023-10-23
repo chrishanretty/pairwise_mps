@@ -6,6 +6,7 @@ get_wep <- function(x) {
                      x > .90 ~ "very likely to be to the ",
                      x > .66 ~ "likely to be to the ",
                      x >= .50 ~ "more likely than not to be to the ",
+                     x >= .45 ~ "only barely more likely than not to be to the "
                      TRUE ~ " error! "
                      )
     return(wep)
@@ -31,7 +32,8 @@ dat$value.sc <- as.integer(dat$value.sc)
 
 dat <- dat |>
     dplyr::select(Name, Constituency, Party, value, value.sc) |>
-    mutate(DisplayName = paste0(Name, " (", Constituency, ")"))
+    mutate(DisplayName = paste0(Name, " (", Constituency, ")")) |>
+    ungroup()
 
 ### Also read in cutoffs
 cutoffs <- readRDS("mean_cutoff.rds")
@@ -115,8 +117,10 @@ ui <- fluidPage(
                           h4("Can I download the data?"),
                           p("Yes: you can either download "),
                           tags$ul(
-                                   tags$li("this Excel spreadsheet, which gives MP names, each MPs' party, their average score, their average rank, and 'low' and 'high' scores and ranks (explained in the spreadsheet). The scores have been rescaled so that the lowest (most left-wing) score is 0, and the highest (most right-wing) score is 100. "),
-                                   tags$li("this comma separated values file, which includes the full output of the measurement model, with ONS constituency identifiers and TheyWorkForYou person codes")
+                                   tags$li(tags$a("this Excel spreadsheet", href = "https://github.com/chrishanretty/pairwise_mps/raw/a11e77efc875abe6d0c62a91d6da04e85d9557fd/outputs/mpsleftright_excel.xlsx"),
+                                           ", which gives MP names, each MPs' party, their average score, their average rank, and 'low' and 'high' scores and ranks (explained in the spreadsheet). The scores have been rescaled so that the lowest (most left-wing) score is 0, and the highest (most right-wing) score is 100. "),
+                                   tags$li(tags$a("this comma separated values file", href = "https://github.com/chrishanretty/pairwise_mps/raw/main/outputs/mpsleftright_full.csv.gz"),
+                                           ", which includes the full output of the measurement model, with ONS constituency identifiers and TheyWorkForYou person codes")
                                ),
                           p("If you don't know which file to use, use the Excel spreadsheet. ")
                           
@@ -148,14 +152,14 @@ server <- function(input, output) {
 
     ### Declare some reactive variables
     theta_a <- eventReactive(input$compare, {
-        dat |> filter(DisplayName == input$mp_a)
+        dat |> filter(as.character(DisplayName) == input$mp_a)
     })
     theta_b <- eventReactive(input$compare, {
-        dat |> filter(DisplayName == input$mp_b)
+        dat |> filter(as.character(DisplayName) == input$mp_b)
     })
 
     theta_mp_party <- eventReactive(input$compare_within_party, {
-        pt_a <- dat |> filter(DisplayName == input$mp_party) |>
+        pt_a <- dat |> filter(as.character(DisplayName) == input$mp_party) |>
             mutate(selected = 1)
         pt_b <- dat |> filter(Party == pt_a$Party[1]) |>
             mutate(selected = 0)
@@ -280,7 +284,8 @@ server <- function(input, output) {
 </ul>
 
 "
-        if (prob < 50) {
+        n_comparisons <- nrow(theta_mp_party())
+        if (n_comparisons == 1) {
             print(HTML("This comparison doesn't make sense for Caroline Lucas, the sole Green MP"))
         } else {
             print(HTML(stringr::str_glue(str_for_glueing)))
